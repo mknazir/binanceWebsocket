@@ -10,7 +10,7 @@ const BinanceWebSocket = () => {
   const [coinData, setCoinData] = useState({});
   const [selectedTab, setSelectedTab] = useState('BTCUSDT');
   const [displayedCoins, setDisplayedCoins] = useState(['BTCUSDT', 'ETHUSDT']);
-  const [dropdownCoins, setDropdownCoins] = useState(['BNBUSDT', 'ATOMUSDT']);
+  const [dropdownCoins, setDropdownCoins] = useState([]);
   const [newCoin, setNewCoin] = useState('');
   const [isWebSocketError, setIsWebSocketError] = useState(false);
 
@@ -19,6 +19,21 @@ const BinanceWebSocket = () => {
   const handleIntervalChange = (interval) => {
     setSelectedInterval(interval);
   };
+
+  const fetchDropdownCoins = async () => {
+    try {
+      const response = await fetch('https://api3.binance.com/api/v3/ticker/price');
+      const data = await response.json();
+      const symbols = data.map((entry) => entry.symbol);
+      setDropdownCoins(symbols);
+    } catch (error) {
+      console.error('Error fetching dropdown coins:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDropdownCoins();
+  }, []);
 
   const fetchHistoricalData = async () => {
     const endTime = Date.now();
@@ -170,14 +185,17 @@ const BinanceWebSocket = () => {
             type="text"
             value={newCoin}
             onChange={(e) => setNewCoin(e.target.value)}
-            list="coinSuggestions"
             placeholder="Search for a coin"
+            list="coinSuggestions"
           />
-          <datalist id="coinSuggestions">
-            {dropdownCoins.map((coin) => (
-              <option key={coin} value={coin} />
-            ))}
-          </datalist>
+          {newCoin && (
+            <datalist id="coinSuggestions">
+              {dropdownCoins.map((coin) => (
+                <option key={coin} value={coin} />
+              ))}
+            </datalist>
+          )}
+
           <button onClick={addNewCoin}>Add Coin</button>
         </div>
         <TabList>
@@ -202,10 +220,10 @@ const BinanceWebSocket = () => {
               </p>
             </div>
             <select value={selectedInterval} onChange={(e) => handleIntervalChange(e.target.value)}>
-          <option value="1m">1 Minute</option>
-          <option value="3m">3 Minutes</option>
-          <option value="5m">5 Minutes</option>
-        </select>
+              <option value="1m">1 Minute</option>
+              <option value="3m">3 Minutes</option>
+              <option value="5m">5 Minutes</option>
+            </select>
 
             <div className='chart'>
               <Chart
