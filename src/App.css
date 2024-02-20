@@ -1,38 +1,50 @@
-.App {
-  text-align: center;
-}
+/* Add these styles to your CSS file or use a CSS-in-JS solution */
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.coin-container {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-around;
+}
+
+.coin-item {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin: 10px;
+  padding: 15px;
+  width: 90%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+}
+
+.coin-info {
+  width: 50%;
+  display: flex;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  align-items: center;
+  flex-direction: column;
 }
 
-.App-link {
-  color: #61dafb;
+.chart {
+  width: 90%;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.tabContainer{
+  width: 90%;
+}
+
+.price {
+  color: green; /* or any color you prefer */
+}
+
+.percent {
+  color: blue; /* or any color you prefer */
+}
+
+.volume {
+  color: orange; /* or any color you prefer */
+}
+
+.supply {
+  color: purple; /* or any color you prefer */
 }
