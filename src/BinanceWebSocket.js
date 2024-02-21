@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Chart } from 'react-google-charts';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import 'react-tabs/style/react-tabs.css';
-import { useLocation } from 'react-router-dom';
 import './App.css';
 
 const BinanceWebSocket = () => {
-  const location = useLocation();
   const [coinData, setCoinData] = useState({});
-  const [selectedTab, setSelectedTab] = useState('BTCUSDT');
-  const [displayedCoins, setDisplayedCoins] = useState(['BTCUSDT', 'ETHUSDT']);
+  const [selectedTab, setSelectedTab] = useState(localStorage.getItem('selectedTab') || 'BTCUSDT');
+  const [displayedCoins, setDisplayedCoins] = useState(
+    JSON.parse(localStorage.getItem('displayedCoins')) || ['BTCUSDT', 'ETHUSDT']
+  );
   const [dropdownCoins, setDropdownCoins] = useState([]);
   const [newCoin, setNewCoin] = useState('');
   const [isWebSocketError, setIsWebSocketError] = useState(false);
@@ -24,12 +24,15 @@ const BinanceWebSocket = () => {
     try {
       const response = await fetch('https://api3.binance.com/api/v3/ticker/price');
       const data = await response.json();
-      const symbols = data.map((entry) => entry.symbol);
-      setDropdownCoins(symbols);
+      const usdtSymbols = data
+        .filter((entry) => entry.symbol.includes('USDT'))
+        .map((entry) => entry.symbol);
+      setDropdownCoins(usdtSymbols);
     } catch (error) {
       console.error('Error fetching dropdown coins:', error);
     }
   };
+
 
   useEffect(() => {
     fetchDropdownCoins();
@@ -81,6 +84,8 @@ const BinanceWebSocket = () => {
   };
 
   useEffect(() => {
+    localStorage.setItem('selectedTab', selectedTab);
+    localStorage.setItem('displayedCoins', JSON.stringify(displayedCoins));
     fetchHistoricalData();
   }, [selectedTab, selectedInterval]);
 
