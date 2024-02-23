@@ -149,6 +149,7 @@ const BinanceWebSocket = () => {
     ws.onclose = (event) => {
       console.log('WebSocket Closed:', event);
       setIsWebSocketError(true);
+      handleWebSocketReconnect(ws);
     };
 
     return () => {
@@ -161,6 +162,77 @@ const BinanceWebSocket = () => {
     return newQueue.length > limit ? newQueue.slice(1) : newQueue;
   };
 
+  const handleWebSocketReconnect = (ws) => {
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+      ws = new WebSocket('wss://stream.binance.com:9443/ws');
+
+      ws.onopen = () => {
+        console.log('WebSocket reconnection opened');
+        setIsWebSocketError(false);
+
+        const subscribe = {
+          method: 'SUBSCRIBE',
+          params: [`${selectedTab.toLowerCase()}@kline_1m`],
+          id: 1,
+        };
+        ws.send(JSON.stringify(subscribe));
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data && data.e === 'kline' && data.s === selectedTab) {
+          setCoinData((prevData) => {
+            const updatedData = { ...prevData };
+
+            const kline = data.k;
+            const currentTime = new Date(kline.t).getTime();
+
+            if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
+              const previousCandle =
+                updatedData[selectedTab].pricesCandlestickChart.slice(-1)[0];
+              const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
+              const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
+              const newCandle = [
+                new Date(kline.t).toLocaleTimeString(),
+                Math.min(previousLow, parseFloat(kline.l)),
+                parseFloat(kline.o),
+                parseFloat(kline.c),
+                Math.max(previousHigh, parseFloat(kline.h)),
+              ];
+
+              updatedData[selectedTab].pricesCandlestickChart = enqueue(
+                updatedData[selectedTab].pricesCandlestickChart,
+                newCandle,
+                30
+              );
+
+              updatedData.lastUpdateTime = currentTime;
+            }
+
+            updatedData[selectedTab].pricesLineChart = [
+              ...updatedData[selectedTab].pricesLineChart,
+              [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
+            ];
+
+            return updatedData;
+          });
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket Error:', error);
+        setIsWebSocketError(true);
+      };
+
+      ws.onclose = (event) => {
+        console.log('WebSocket reconnection closed:', event);
+        setIsWebSocketError(true);
+        // Retry reconnection after a delay
+        setTimeout(() => handleWebSocketReconnect(ws), 5000);
+      };
+    }
+  };
 
   const handleRemoveCoin = (coinToRemove) => {
     const isConfirmed = window.confirm(`Are you sure you want to remove ${coinToRemove}?`);
@@ -238,7 +310,7 @@ const BinanceWebSocket = () => {
                 loader={<div>Loading Chart</div>}
                 data={[
                   ['Time', 'Low', 'Open', 'Close', 'High'],
-                  ...coinData[coin]?.pricesCandlestickChart || [],
+                  ...(coinData[coin]?.pricesCandlestickChart || []),
                 ]}
                 options={{
                   title: 'Candlestick Chart',
@@ -255,7 +327,7 @@ const BinanceWebSocket = () => {
                 height={700}
                 chartType='LineChart'
                 loader={<div>Loading Chart</div>}
-                data={[['Time', 'Price'], ...coinData[coin]?.pricesLineChart || []]}
+                data={[['Time', 'Price'], ...(coinData[coin]?.pricesLineChart || [])]}
                 options={{
                   title: 'Price Over Time',
                   legend: { position: 'bottom' },
