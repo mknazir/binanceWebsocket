@@ -15,7 +15,7 @@ const CoinSelectionPage = () => {
 
   return (
     <div className="coin-selection-container">
-      <h2>Select a Coin</h2>
+      <h2>Write your name to store the data in you Local</h2>
 
       <label>
         User Name:
