@@ -253,6 +253,8 @@ const BinanceWebSocket = () => {
     }
   };
 
+  const userName = localStorage.getItem("userName")
+
   return (
     <div className='coin-container'>
       {isWebSocketError && <div className="error-message">WebSocket Error. Please check your connection.</div>}
@@ -296,11 +298,14 @@ const BinanceWebSocket = () => {
                 Volume: <span className='volume'>{coinData[coin]?.volume[coinData[coin]?.volume.length - 1]?.[1]} BTC</span>
               </p>
             </div>
+            <div className='timeName'>
             <select value={selectedInterval} onChange={(e) => handleIntervalChange(e.target.value)}>
               <option value="1m">1 Minute</option>
               <option value="3m">3 Minutes</option>
               <option value="5m">5 Minutes</option>
             </select>
+            <h2>{userName}</h2>
+            </div>
 
             <div className='chart'>
               <Chart

@@ -48,3 +48,9 @@
 .supply {
   color: purple; /* or any color you prefer */
 }
+
+.timeName{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
