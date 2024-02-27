@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Chart } from 'react-google-charts';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import 'react-tabs/style/react-tabs.css';
 import './App.css';
+import Highcharts from 'highcharts/highstock';
+import HighchartsReact from 'highcharts-react-official';
+import highchartsMore from 'highcharts/highcharts-more';
+
+highchartsMore(Highcharts);
 
 const BinanceWebSocket = () => {
   const [coinData, setCoinData] = useState({});
@@ -61,10 +65,10 @@ const BinanceWebSocket = () => {
       [selectedTab]: {
         pricesCandlestickChart: data.map((candle) => [
           new Date(candle[0]).toLocaleTimeString(),
-          parseFloat(candle[3]), // Low
           parseFloat(candle[1]), // Open
-          parseFloat(candle[4]), // Close
           parseFloat(candle[2]), // High
+          parseFloat(candle[3]), // Low
+          parseFloat(candle[4]), // Close
         ]),
         pricesLineChart: data.map((candle) => [
           new Date(candle[0]).toLocaleTimeString(),
@@ -120,10 +124,10 @@ const BinanceWebSocket = () => {
             const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
             const newCandle = [
               new Date(kline.t).toLocaleTimeString(),
-              Math.min(previousLow, parseFloat(kline.l)),
               parseFloat(kline.o),
-              parseFloat(kline.c),
               Math.max(previousHigh, parseFloat(kline.h)),
+              parseFloat(kline.c),
+              Math.min(previousLow, parseFloat(kline.l)),
             ];
 
             updatedData[selectedTab].pricesCandlestickChart = enqueue(updatedData[selectedTab].pricesCandlestickChart, newCandle, 30);
@@ -253,7 +257,7 @@ const BinanceWebSocket = () => {
     }
   };
 
-  const userName = localStorage.getItem("userName")
+  const userName = localStorage.getItem("userName");
 
   return (
     <div className='coin-container'>
@@ -308,34 +312,52 @@ const BinanceWebSocket = () => {
             </div>
 
             <div className='chart'>
-              <Chart
-                width={'100%'}
-                height={700}
-                chartType='CandlestickChart'
-                loader={<div>Loading Chart</div>}
-                data={[
-                  ['Time', 'Low', 'Open', 'Close', 'High'],
-                  ...(coinData[coin]?.pricesCandlestickChart || []),
-                ]}
+              <HighchartsReact
+                highcharts={Highcharts}
                 options={{
-                  title: 'Candlestick Chart',
-                  legend: 'none',
-                  candlestick: {
-                    fallingColor: { strokeWidth: 1, fill: '#a52714' },
-                    risingColor: { strokeWidth: 1, fill: '#0f9d58' },
+                  title: {
+                    text: 'Candlestick Chart',
                   },
+                  xAxis: {
+                    type: 'category',
+                  },
+                  yAxis: {
+                    title: {
+                      text: 'Price',
+                    },
+                  },
+                  plotOptions: {
+                    candlestick: {
+                      color: 'pink',
+                      upColor: 'lightgreen',
+                      lineColor: 'red',
+                      upLineColor: 'green',
+                    }
+                  },
+                  series: [{
+                    type: 'candlestick',
+                    name: 'Candlestick',
+                    data: [...(coinData[coin]?.pricesCandlestickChart || [])]
+                  }],
                 }}
-                rootProps={{ 'data-testid': '2' }}
               />
-              <Chart
-                width={'100%'}
-                height={700}
-                chartType='LineChart'
-                loader={<div>Loading Chart</div>}
-                data={[['Time', 'Price'], ...(coinData[coin]?.pricesLineChart || [])]}
+              <HighchartsReact
+                highcharts={Highcharts}
                 options={{
-                  title: 'Price Over Time',
-                  legend: { position: 'bottom' },
+                  title: {
+                    text: `${selectedTab}` 
+                  },
+                  xAxis: {
+                    type: 'category',
+                  },
+                  yAxis: {
+                    title: {
+                      text: 'Price',
+                    },
+                  },
+                  series: [{
+                    data: [...(coinData[coin]?.pricesLineChart || [])]
+                  }]
                 }}
               />
             </div>
