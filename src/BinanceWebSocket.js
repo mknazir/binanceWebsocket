@@ -367,4 +367,5 @@ const BinanceWebSocket = () => {
     </div>
   );
 };
+
 export default BinanceWebSocket;
