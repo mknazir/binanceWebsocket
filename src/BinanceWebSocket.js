@@ -19,6 +19,31 @@ const BinanceWebSocket = () => {
   const [isWebSocketError, setIsWebSocketError] = useState(false);
 
   const [selectedInterval, setSelectedInterval] = useState('1m');
+  const [selectedChartType, setSelectedChartType] = useState('candlestick');
+  const [heikinAshiData, setHeikinAshiData] = useState({});
+
+  // ... (existing functions)
+
+  const calculateHeikinAshi = (data) => {
+    const heikinashi = data.map((candle, index) => {
+      const previousCandle = index > 0 ? heikinAshiData[selectedTab]?.heikinashi[index - 1] : null;
+
+      const newOpen = (previousCandle ? (previousCandle[1] + previousCandle[2]) / 2 : candle[1]);
+      const newClose = (candle[1] + candle[2] + candle[3] + candle[4]) / 4;
+      const newHigh = Math.max(candle[2], newClose, newOpen);
+      const newLow = Math.min(candle[3], newClose, newOpen);
+
+      return [
+        new Date(candle[0]).toLocaleTimeString(),
+        newOpen,
+        newHigh,
+        newLow,
+        newClose,
+      ];
+    });
+
+    return heikinashi;
+  };
 
   const handleIntervalChange = (interval) => {
     setSelectedInterval(interval);
@@ -63,14 +88,14 @@ const BinanceWebSocket = () => {
   const processHistoricalData = (data) => {
     const processedData = {
       [selectedTab]: {
-        pricesCandlestickChart: data.map((candle) => [
+        candlestick: data.map((candle) => [
           new Date(candle[0]).toLocaleTimeString(),
           parseFloat(candle[1]), // Open
           parseFloat(candle[2]), // High
           parseFloat(candle[3]), // Low
           parseFloat(candle[4]), // Close
         ]),
-        pricesLineChart: data.map((candle) => [
+        line: data.map((candle) => [
           new Date(candle[0]).toLocaleTimeString(),
           parseFloat(candle[4]), // Close
         ]),
@@ -78,10 +103,16 @@ const BinanceWebSocket = () => {
           new Date(candle[0]).toLocaleTimeString(),
           parseFloat(candle[5]), // Volume
         ]),
+        heikinashi: calculateHeikinAshi(data),
       },
     };
 
     setCoinData((prevData) => ({
+      ...prevData,
+      ...processedData,
+    }));
+
+    setHeikinAshiData((prevData) => ({
       ...prevData,
       ...processedData,
     }));
@@ -117,28 +148,46 @@ const BinanceWebSocket = () => {
 
           const kline = data.k;
           const currentTime = new Date(kline.t).getTime();
-
-          if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
-            const previousCandle = updatedData[selectedTab].pricesCandlestickChart.slice(-1)[0];
-            const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
-            const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
-            const newCandle = [
-              new Date(kline.t).toLocaleTimeString(),
-              parseFloat(kline.o),
-              Math.max(previousHigh, parseFloat(kline.h)),
-              parseFloat(kline.c),
-              Math.min(previousLow, parseFloat(kline.l)),
-            ];
-
-            updatedData[selectedTab].pricesCandlestickChart = enqueue(updatedData[selectedTab].pricesCandlestickChart, newCandle, 30);
-
-            updatedData.lastUpdateTime = currentTime;
+          if (selectedChartType === 'candlestick') {
+            if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
+              const previousCandle = updatedData[selectedTab].candlestick.slice(-1)[0];
+              const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
+              const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
+              const newCandle = [
+                new Date(kline.t).toLocaleTimeString(),
+                parseFloat(kline.o),
+                Math.max(previousHigh, parseFloat(kline.h)),
+                parseFloat(kline.c),
+                Math.min(previousLow, parseFloat(kline.l)),
+              ];
+  
+              updatedData[selectedTab].candlestick = enqueue(updatedData[selectedTab].candlestick, newCandle, 30);
+  
+              updatedData.lastUpdateTime = currentTime;
+            }
           }
 
-          updatedData[selectedTab].pricesLineChart = [
-            ...updatedData[selectedTab].pricesLineChart,
-            [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
-          ];
+          if (selectedChartType === 'line') {
+            updatedData[selectedTab].line = [
+              ...updatedData[selectedTab].line,
+              [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
+            ];
+          }
+
+          if (selectedChartType === 'heikinashi') {
+            if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
+              const previousCandle = updatedData[selectedTab].heikinashi.slice(-1)[0];
+              const newCandle = calculateHeikinAshi([kline], [previousCandle]);
+  
+              updatedData[selectedTab].heikinashi = enqueue(
+                updatedData[selectedTab].heikinashi,
+                newCandle,
+                30
+              );
+  
+              updatedData.lastUpdateTime = currentTime;
+            }
+          }
 
           return updatedData;
         });
@@ -159,7 +208,7 @@ const BinanceWebSocket = () => {
     return () => {
       ws.close();
     };
-  }, [selectedTab, selectedInterval]);
+  }, [selectedTab, selectedChartType, selectedInterval]);
 
   const enqueue = (queue, data, limit) => {
     const newQueue = [...queue, data];
@@ -192,32 +241,44 @@ const BinanceWebSocket = () => {
             const kline = data.k;
             const currentTime = new Date(kline.t).getTime();
 
-            if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
-              const previousCandle =
-                updatedData[selectedTab].pricesCandlestickChart.slice(-1)[0];
-              const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
-              const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
-              const newCandle = [
-                new Date(kline.t).toLocaleTimeString(),
-                Math.min(previousLow, parseFloat(kline.l)),
-                parseFloat(kline.o),
-                parseFloat(kline.c),
-                Math.max(previousHigh, parseFloat(kline.h)),
-              ];
-
-              updatedData[selectedTab].pricesCandlestickChart = enqueue(
-                updatedData[selectedTab].pricesCandlestickChart,
-                newCandle,
-                30
-              );
-
-              updatedData.lastUpdateTime = currentTime;
+            if (selectedChartType === 'candlestick') {
+              if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
+                const previousCandle =
+                  updatedData[selectedTab].candlestick.slice(-1)[0];
+                const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
+                const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
+                const newCandle = [
+                  new Date(kline.t).toLocaleTimeString(),
+                  Math.min(previousLow, parseFloat(kline.l)),
+                  parseFloat(kline.o),
+                  parseFloat(kline.c),
+                  Math.max(previousHigh, parseFloat(kline.h)),
+                ];
+  
+                updatedData[selectedTab].candlestick = enqueue(
+                  updatedData[selectedTab].candlestick,
+                  newCandle,
+                  30
+                );
+  
+                updatedData.lastUpdateTime = currentTime;
+              }
             }
 
-            updatedData[selectedTab].pricesLineChart = [
-              ...updatedData[selectedTab].pricesLineChart,
-              [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
-            ];
+            if (selectedChartType === 'line') {
+              updatedData[selectedTab].line = [
+                ...updatedData[selectedTab].line,
+                [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
+              ];
+            }
+
+            if (selectedChartType === 'heikinashi') {
+              updatedData[selectedTab].heikinashi = enqueue(
+                updatedData[selectedTab].heikinashi,
+                calculateHeikinAshi([kline], updatedData[selectedTab].heikinashi),
+                30
+              );
+            }
 
             return updatedData;
           });
@@ -296,7 +357,7 @@ const BinanceWebSocket = () => {
               <p>
                 Price:{' '}
                 <span className='price'>
-                  {coinData[coin]?.pricesLineChart[coinData[coin]?.pricesLineChart.length - 1]?.[1]} USDT
+                  {coinData[coin]?.line[coinData[coin]?.line.length - 1]?.[1]} USDT
                 </span>
                 <br />
                 Volume: <span className='volume'>{coinData[coin]?.volume[coinData[coin]?.volume.length - 1]?.[1]} BTC</span>
@@ -308,15 +369,24 @@ const BinanceWebSocket = () => {
               <option value="3m">3 Minutes</option>
               <option value="5m">5 Minutes</option>
             </select>
+            <select value={selectedChartType} onChange={(e) => setSelectedChartType(e.target.value)}>
+                <option value="line">Line Chart</option>
+                <option value="candlestick">Candlestick Chart</option>
+                <option value="heikinashi">Heikin-Ashi Chart</option>
+              </select>
             <h2>{userName}</h2>
             </div>
 
             <div className='chart'>
-              <HighchartsReact
+            <HighchartsReact
                 highcharts={Highcharts}
                 options={{
                   title: {
-                    text: 'Candlestick Chart',
+                    text: selectedChartType === 'candlestick'
+                      ? 'Candlestick Chart'
+                      : selectedChartType === 'heikinashi'
+                        ? 'Heikin Ashi Chart'
+                        : 'Line Chart',
                   },
                   xAxis: {
                     type: 'category',
@@ -332,32 +402,13 @@ const BinanceWebSocket = () => {
                       upColor: 'lightgreen',
                       lineColor: 'red',
                       upLineColor: 'green',
-                    }
-                  },
-                  series: [{
-                    type: 'candlestick',
-                    name: 'Candlestick',
-                    data: [...(coinData[coin]?.pricesCandlestickChart || [])]
-                  }],
-                }}
-              />
-              <HighchartsReact
-                highcharts={Highcharts}
-                options={{
-                  title: {
-                    text: `${selectedTab}` 
-                  },
-                  xAxis: {
-                    type: 'category',
-                  },
-                  yAxis: {
-                    title: {
-                      text: 'Price',
                     },
                   },
                   series: [{
-                    data: [...(coinData[coin]?.pricesLineChart || [])]
-                  }]
+                    type: selectedChartType === 'heikinashi' ? 'candlestick' : selectedChartType,
+                    name: selectedChartType === 'candlestick' ? 'Candlestick' : selectedChartType,
+                    data: [...(coinData[coin]?.[`${selectedChartType}`] || [])],
+                  }],
                 }}
               />
             </div>
