@@ -20,30 +20,6 @@ const BinanceWebSocket = () => {
 
   const [selectedInterval, setSelectedInterval] = useState('1m');
   const [selectedChartType, setSelectedChartType] = useState('candlestick');
-  const [heikinAshiData, setHeikinAshiData] = useState({});
-
-  // ... (existing functions)
-
-  const calculateHeikinAshi = (data) => {
-    const heikinashi = data.map((candle, index) => {
-      const previousCandle = index > 0 ? heikinAshiData[selectedTab]?.heikinashi[index - 1] : null;
-
-      const newOpen = (previousCandle ? (previousCandle[1] + previousCandle[2]) / 2 : candle[1]);
-      const newClose = (candle[1] + candle[2] + candle[3] + candle[4]) / 4;
-      const newHigh = Math.max(candle[2], newClose, newOpen);
-      const newLow = Math.min(candle[3], newClose, newOpen);
-
-      return [
-        new Date(candle[0]).toLocaleTimeString(),
-        newOpen,
-        newHigh,
-        newLow,
-        newClose,
-      ];
-    });
-
-    return heikinashi;
-  };
 
   const handleIntervalChange = (interval) => {
     setSelectedInterval(interval);
@@ -58,7 +34,7 @@ const BinanceWebSocket = () => {
         .map((entry) => entry.symbol);
       setDropdownCoins(usdtSymbols);
     } catch (error) {
-      console.error('Error fetching dropdown coins:', error);
+      // console.error('Error fetching dropdown coins:', error);
     }
   };
 
@@ -80,7 +56,7 @@ const BinanceWebSocket = () => {
       const result = await response.json();
       processHistoricalData(result);
     } catch (error) {
-      console.error('Error fetching historical data:', error);
+      // console.error('Error fetching historical data:', error);
       setIsWebSocketError(true);
     }
   };
@@ -103,20 +79,42 @@ const BinanceWebSocket = () => {
           new Date(candle[0]).toLocaleTimeString(),
           parseFloat(candle[5]), // Volume
         ]),
-        heikinashi: calculateHeikinAshi(data),
+        heikinashi: processHeikinashi(data), // Delegate Heikin-Ashi calculation
       },
     };
-
+  
+    console.log("abc", processedData);
     setCoinData((prevData) => ({
       ...prevData,
       ...processedData,
     }));
-
-    setHeikinAshiData((prevData) => ({
-      ...prevData,
-      ...processedData,
-    }));
   };
+  
+  const processHeikinashi = (data) => {
+
+    const cleanData = data.map((candle) => {
+      return candle.map((value) => {
+        return typeof value === 'string' ? parseFloat(value) : value;
+      });
+    });
+
+    const firstOpen = (cleanData[0][1] + cleanData[0][4]) / 2;
+    const firstClose = cleanData[0][4];
+    
+    return cleanData.reduce((acc, candle, i) => {
+      const prevOpen = i === 0 ? firstOpen : acc[i - 1][1];
+      const prevClose = i === 0 ? firstClose : acc[i - 1][4];
+  
+      const open = (prevOpen + prevClose) / 2;
+      const close = (open + candle[1] + candle[2] + candle[4]) / 4;
+      const high = Math.max(candle[2], open, close);
+      const low = Math.min(candle[3], open, close);
+  
+      return [...acc, [candle[0], open, high, low, close]];
+    }, []);
+  };
+    
+  
 
   useEffect(() => {
     localStorage.setItem('selectedTab', selectedTab);
@@ -128,7 +126,7 @@ const BinanceWebSocket = () => {
     const ws = new WebSocket('wss://stream.binance.com:9443/ws');
 
     ws.onopen = () => {
-      console.log('WebSocket connection opened');
+      // console.log('WebSocket connection opened');
       setIsWebSocketError(false);
 
       const subscribe = {
@@ -141,7 +139,6 @@ const BinanceWebSocket = () => {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-
       if (data && data.e === 'kline' && data.s === selectedTab) {
         setCoinData((prevData) => {
           const updatedData = { ...prevData };
@@ -165,42 +162,41 @@ const BinanceWebSocket = () => {
   
               updatedData.lastUpdateTime = currentTime;
             }
-          }
-
-          if (selectedChartType === 'line') {
+          } else if (selectedChartType === 'line') {
             updatedData[selectedTab].line = [
               ...updatedData[selectedTab].line,
               [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
             ];
-          }
-
-          if (selectedChartType === 'heikinashi') {
+          } else {
             if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
-              const previousCandle = updatedData[selectedTab].heikinashi.slice(-1)[0];
-              const newCandle = calculateHeikinAshi([kline], [previousCandle]);
+              const previousCandle = updatedData[selectedTab].candlestick.slice(-1)[0];
+              const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
+              const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
+              const newCandle = [
+                new Date(kline.t).toLocaleTimeString(),
+                parseFloat(kline.o),
+                Math.max(previousHigh, parseFloat(kline.h)),
+                parseFloat(kline.c),
+                Math.min(previousLow, parseFloat(kline.l)),
+              ];
   
-              updatedData[selectedTab].heikinashi = enqueue(
-                updatedData[selectedTab].heikinashi,
-                newCandle,
-                30
-              );
+              updatedData[selectedTab].candlestick = enqueue(updatedData[selectedTab].candlestick, newCandle, 30);
   
               updatedData.lastUpdateTime = currentTime;
             }
-          }
-
+        }
           return updatedData;
         });
       }
     };
 
     ws.onerror = (error) => {
-      console.error('WebSocket Error:', error);
+      // console.error('WebSocket Error:', error);
       setIsWebSocketError(true);
     };
 
     ws.onclose = (event) => {
-      console.log('WebSocket Closed:', event);
+      // console.log('WebSocket Closed:', event);
       setIsWebSocketError(true);
       handleWebSocketReconnect(ws);
     };
@@ -220,7 +216,7 @@ const BinanceWebSocket = () => {
       ws = new WebSocket('wss://stream.binance.com:9443/ws');
 
       ws.onopen = () => {
-        console.log('WebSocket reconnection opened');
+        // console.log('WebSocket reconnection opened');
         setIsWebSocketError(false);
 
         const subscribe = {
@@ -263,35 +259,47 @@ const BinanceWebSocket = () => {
   
                 updatedData.lastUpdateTime = currentTime;
               }
-            }
-
-            if (selectedChartType === 'line') {
+            } else if (selectedChartType === 'line') {
               updatedData[selectedTab].line = [
                 ...updatedData[selectedTab].line,
                 [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
               ];
-            }
-
-            if (selectedChartType === 'heikinashi') {
-              updatedData[selectedTab].heikinashi = enqueue(
-                updatedData[selectedTab].heikinashi,
-                calculateHeikinAshi([kline], updatedData[selectedTab].heikinashi),
-                30
-              );
-            }
-
+            } else {
+              if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
+                const previousCandle =
+                updatedData[selectedTab].candlestick.slice(-1)[0];
+                const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
+                const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
+                const newCandle = [
+                  new Date(kline.t).toLocaleTimeString(),
+                  Math.min(previousLow, parseFloat(kline.l)),
+                  parseFloat(kline.o),
+                  parseFloat(kline.c),
+                  Math.max(previousHigh, parseFloat(kline.h)),
+                ];
+  
+                updatedData[selectedTab].candlestick = enqueue(
+                  updatedData[selectedTab].candlestick,
+                  newCandle,
+                  30
+                );
+  
+                updatedData.lastUpdateTime = currentTime;
+              }
+          }
+          
             return updatedData;
           });
         }
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket Error:', error);
+        // console.error('WebSocket Error:', error);
         setIsWebSocketError(true);
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket reconnection closed:', event);
+        // console.log('WebSocket reconnection closed:', event);
         setIsWebSocketError(true);
         // Retry reconnection after a delay
         setTimeout(() => handleWebSocketReconnect(ws), 5000);
@@ -319,7 +327,6 @@ const BinanceWebSocket = () => {
   };
 
   const userName = localStorage.getItem("userName");
-
   return (
     <div className='coin-container'>
       {isWebSocketError && <div className="error-message">WebSocket Error. Please check your connection.</div>}
