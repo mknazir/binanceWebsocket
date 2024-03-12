@@ -1,12 +1,143 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import 'react-tabs/style/react-tabs.css';
+import { createChart , CrosshairMode } from 'lightweight-charts';
 import './App.css';
-import Highcharts from 'highcharts/highstock';
-import HighchartsReact from 'highcharts-react-official';
-import highchartsMore from 'highcharts/highcharts-more';
 
-highchartsMore(Highcharts);
+const Chart = ({ data, type }) => {
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (chartContainerRef.current) {
+      chartRef.current = createChart(chartContainerRef.current, { width: 1400, height: 600 });
+    }
+
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.remove();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (chartRef.current && data) {
+      let series;
+
+      if (type == 'candlestick') {
+        series = chartRef.current.addCandlestickSeries();
+        let previousTimestamp = 0;
+        const dataArray = data.map(candle => {
+          const timestamp = new Date(candle[0]).getTime();
+          const adjustedTimestamp = isNaN(timestamp) || timestamp <= previousTimestamp ? previousTimestamp + 1000 : timestamp;
+    
+          previousTimestamp = adjustedTimestamp;
+    
+          return {
+            time: adjustedTimestamp,
+            open: parseFloat(candle[1]), // Open
+            high: parseFloat(candle[2]), // High
+            low: parseFloat(candle[3]), // Low
+            close: parseFloat(candle[4]), // Close
+          };
+        });
+  
+        dataArray.sort((a, b) => a.time - b.time);
+  
+        series.setData(dataArray);
+        chartRef.current.subscribeCrosshairMove((param) => {
+          console.log("kaif", param);
+        }); 
+      } else if (type == 'line') {
+        series = chartRef.current.addLineSeries();
+        let previousTimestamp = 0;
+        const dataArray = data.map(candle => {
+          const timestamp = new Date(candle[0]).getTime();
+          const adjustedTimestamp = isNaN(timestamp) || timestamp <= previousTimestamp ? previousTimestamp + 1000 : timestamp;
+    
+          previousTimestamp = adjustedTimestamp;
+    
+          return {
+            time: adjustedTimestamp,
+            value: candle[1]
+          };
+        });
+  
+        dataArray.sort((a, b) => a.time - b.time);
+  
+        series.setData(dataArray);
+      } else if (type == 'bar') {
+        series = chartRef.current.addBarSeries();
+        let previousTimestamp = 0;
+        const dataArray = data.map(candle => {
+          const timestamp = new Date(candle[0]).getTime();
+          const adjustedTimestamp = isNaN(timestamp) || timestamp <= previousTimestamp ? previousTimestamp + 1000 : timestamp;
+    
+          previousTimestamp = adjustedTimestamp;
+    
+          return {
+            time: adjustedTimestamp,
+            open: parseFloat(candle[1]), // Open
+            high: parseFloat(candle[2]), // High
+            low: parseFloat(candle[3]), // Low
+            close: parseFloat(candle[4]), // Close
+          };
+        });
+  
+        dataArray.sort((a, b) => a.time - b.time);
+  
+        series.setData(dataArray);
+      } else if (type == 'area') {
+        series = chartRef.current.addAreaSeries({ lineColor: '#2962FF', topColor: '#2962FF', bottomColor: 'rgba(41, 98, 255, 0.28)' });
+        let previousTimestamp = 0;
+        const dataArray = data.map(candle => {
+          const timestamp = new Date(candle[0]).getTime();
+          const adjustedTimestamp = isNaN(timestamp) || timestamp <= previousTimestamp ? previousTimestamp + 1000 : timestamp;
+    
+          previousTimestamp = adjustedTimestamp;
+    
+          return {
+            time: adjustedTimestamp,
+            value: candle[1]
+          };
+        });
+  
+        dataArray.sort((a, b) => a.time - b.time);
+  
+        series.setData(dataArray);
+      } else if (type == 'heikinashi') {
+        series = chartRef.current.addCandlestickSeries();
+        let previousTimestamp = 0;
+        const dataArray = data.map(candle => {
+          const timestamp = new Date(candle[0]).getTime();
+          const adjustedTimestamp = isNaN(timestamp) || timestamp <= previousTimestamp ? previousTimestamp + 1000 : timestamp;
+    
+          previousTimestamp = adjustedTimestamp;
+    
+          return {
+            time: adjustedTimestamp,
+            open: parseFloat(candle[1]), // Open
+            high: parseFloat(candle[2]), // High
+            low: parseFloat(candle[3]), // Low
+            close: parseFloat(candle[4]), // Close
+          };
+        });
+  
+        dataArray.sort((a, b) => a.time - b.time);
+  
+        series.setData(dataArray);
+      }
+
+      chartRef.current.applyOptions({
+        crosshair: {
+          mode: CrosshairMode.Normal,
+        },
+      });
+
+    }
+  }, [data, type]);
+  
+  return <div ref={chartContainerRef} />;
+};
 
 const BinanceWebSocket = () => {
   const [coinData, setCoinData] = useState({});
@@ -45,11 +176,11 @@ const BinanceWebSocket = () => {
 
   const fetchHistoricalData = async () => {
     const endTime = Date.now();
-    const startTime = endTime - 30 * 60 * 1000;
+    // const startTime = endTime - 300 * 60 * 1000;
     const interval = selectedInterval;
-    const limit = 30;
+    const limit = 3000;
 
-    const historicalDataUrl = `https://api.binance.com/api/v3/klines?symbol=${selectedTab}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
+    const historicalDataUrl = `https://api.binance.com/api/v3/klines?symbol=${selectedTab}&interval=${interval}&endTime=${endTime}&limit=${limit}`;
 
     try {
       const response = await fetch(historicalDataUrl);
@@ -65,25 +196,24 @@ const BinanceWebSocket = () => {
     const processedData = {
       [selectedTab]: {
         candlestick: data.map((candle) => [
-          new Date(candle[0]).toLocaleTimeString(),
+          candle[0],
           parseFloat(candle[1]), // Open
           parseFloat(candle[2]), // High
           parseFloat(candle[3]), // Low
           parseFloat(candle[4]), // Close
         ]),
         line: data.map((candle) => [
-          new Date(candle[0]).toLocaleTimeString(),
+          candle[0],
           parseFloat(candle[4]), // Close
         ]),
         volume: data.map((candle) => [
-          new Date(candle[0]).toLocaleTimeString(),
+          candle[0],
           parseFloat(candle[5]), // Volume
         ]),
         heikinashi: processHeikinashi(data), // Delegate Heikin-Ashi calculation
       },
     };
   
-    console.log("abc", processedData);
     setCoinData((prevData) => ({
       ...prevData,
       ...processedData,
@@ -145,7 +275,7 @@ const BinanceWebSocket = () => {
 
           const kline = data.k;
           const currentTime = new Date(kline.t).getTime();
-          if (selectedChartType === 'candlestick') {
+          if (selectedChartType === 'candlestick' || selectedChartType === 'bar') {
             if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
               const previousCandle = updatedData[selectedTab].candlestick.slice(-1)[0];
               const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
@@ -162,10 +292,10 @@ const BinanceWebSocket = () => {
   
               updatedData.lastUpdateTime = currentTime;
             }
-          } else if (selectedChartType === 'line') {
+          } else if (selectedChartType === 'line' || selectedChartType === 'area') {
             updatedData[selectedTab].line = [
               ...updatedData[selectedTab].line,
-              [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
+              [kline.t, parseFloat(kline.c)],
             ];
           } else {
             if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
@@ -173,7 +303,7 @@ const BinanceWebSocket = () => {
               const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
               const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
               const newCandle = [
-                new Date(kline.t).toLocaleTimeString(),
+                kline.t,
                 parseFloat(kline.o),
                 Math.max(previousHigh, parseFloat(kline.h)),
                 parseFloat(kline.c),
@@ -237,14 +367,14 @@ const BinanceWebSocket = () => {
             const kline = data.k;
             const currentTime = new Date(kline.t).getTime();
 
-            if (selectedChartType === 'candlestick') {
+            if (selectedChartType === 'candlestick' || selectedChartType === 'bar') {
               if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
                 const previousCandle =
                   updatedData[selectedTab].candlestick.slice(-1)[0];
                 const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
                 const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
                 const newCandle = [
-                  new Date(kline.t).toLocaleTimeString(),
+                  kline.t,
                   Math.min(previousLow, parseFloat(kline.l)),
                   parseFloat(kline.o),
                   parseFloat(kline.c),
@@ -259,10 +389,10 @@ const BinanceWebSocket = () => {
   
                 updatedData.lastUpdateTime = currentTime;
               }
-            } else if (selectedChartType === 'line') {
+            } else if (selectedChartType === 'line' || selectedChartType === 'area') {
               updatedData[selectedTab].line = [
                 ...updatedData[selectedTab].line,
-                [new Date(kline.t).toLocaleTimeString(), parseFloat(kline.c)],
+                [kline.t, parseFloat(kline.c)],
               ];
             } else {
               if (!updatedData.lastUpdateTime || currentTime - updatedData.lastUpdateTime >= 60000) {
@@ -271,7 +401,7 @@ const BinanceWebSocket = () => {
                 const previousLow = previousCandle ? previousCandle[3] : parseFloat(kline.l);
                 const previousHigh = previousCandle ? previousCandle[2] : parseFloat(kline.h);
                 const newCandle = [
-                  new Date(kline.t).toLocaleTimeString(),
+                  kline.t,
                   Math.min(previousLow, parseFloat(kline.l)),
                   parseFloat(kline.o),
                   parseFloat(kline.c),
@@ -378,46 +508,29 @@ const BinanceWebSocket = () => {
             </select>
             <select value={selectedChartType} onChange={(e) => setSelectedChartType(e.target.value)}>
                 <option value="line">Line Chart</option>
+                <option value="area">Area Chart</option>
                 <option value="candlestick">Candlestick Chart</option>
+                <option value="bar">Bar Chart</option>
                 <option value="heikinashi">Heikin-Ashi Chart</option>
               </select>
             <h2>{userName}</h2>
             </div>
-
             <div className='chart'>
-            <HighchartsReact
-                highcharts={Highcharts}
-                options={{
-                  title: {
-                    text: selectedChartType === 'candlestick'
-                      ? 'Candlestick Chart'
-                      : selectedChartType === 'heikinashi'
-                        ? 'Heikin Ashi Chart'
-                        : 'Line Chart',
-                  },
-                  xAxis: {
-                    type: 'category',
-                  },
-                  yAxis: {
-                    title: {
-                      text: 'Price',
-                    },
-                  },
-                  plotOptions: {
-                    candlestick: {
-                      color: 'pink',
-                      upColor: 'lightgreen',
-                      lineColor: 'red',
-                      upLineColor: 'green',
-                    },
-                  },
-                  series: [{
-                    type: selectedChartType === 'heikinashi' ? 'candlestick' : selectedChartType,
-                    name: selectedChartType === 'candlestick' ? 'Candlestick' : selectedChartType,
-                    data: [...(coinData[coin]?.[`${selectedChartType}`] || [])],
-                  }],
-                }}
-              />
+              {selectedChartType === 'line' && (
+                <Chart data={coinData[coin]?.line} type={selectedChartType} />
+              )}
+              {selectedChartType === 'area' && (
+                <Chart data={coinData[coin]?.line} type={selectedChartType} />
+              )}
+              {selectedChartType === 'candlestick' && (
+                <Chart data={coinData[coin]?.candlestick} type={selectedChartType} />
+              )}
+              {selectedChartType === 'bar' && (
+                <Chart data={coinData[coin]?.candlestick} type={selectedChartType} />
+              )}
+              {selectedChartType === 'heikinashi' && (
+                <Chart data={coinData[coin]?.heikinashi} type={selectedChartType} />
+              )}
             </div>
           </TabPanel>
         ))}
